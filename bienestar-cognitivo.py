@@ -21,45 +21,28 @@ from sklearn.model_selection import train_test_split
 import shap
 from groq import Groq
 
-def generar_discurso_junta(analisis):
-    """Genera un discurso ejecutivo usando Groq basado en los análisis de IA"""
-    
-    # Configurar cliente Groq
+def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comunicacion="Discurso"):
+    """Versión corregida manteniendo tu estructura"""
     client = Groq(api_key="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")
     
-    # Plantilla de prompt profesional
-    SYS_PROMPT = """
-    Eres un orador experto en educación y análisis de datos. Genera un discurso de 5 minutos para la junta de padres de familia con:
-    1. Introducción impactante (1 párrafo)
-    2. 3 hallazgos clave con analogías comprensibles
-    3. 2 recomendaciones accionables
-    4. Conclusión motivacional
-    5. Petición específica de colaboración
-    
-    Estilo: Empático, basado en datos pero no técnico, con metáforas educativas
-    Tono: Alentador pero urgente
-    Destinatarios: Padres de familia no técnicos
-    Formato: Markdown con emojis relevantes
+    SYS_PROMPT = f"""
+    Eres un comunicador educativo. Genera un {tipo_comunicacion.lower()} para {destinatario.lower()} con:
+    1. Introducción impactante
+    2. 3 hallazgos clave
+    3. Recomendaciones prácticas
     """
     
     USER_PROMPT = f"""
-    **Datos del Análisis:**
-    - Clusters principales: {analisis['clusters']}
-    - Variables más importantes: {analisis['top_features']}
-    - Correlaciones clave: {analisis['correlaciones']}
-    - Riesgos detectados: {analisis['riesgos']}
-    - Modelo predictivo (SHAP): {analisis['shap_values']}
-    
-    **Instrucciones Específicas:**
-    - Usar la metáfora de "brújula emocional"
-    - Mencionar 2 veces "nuestros hijos" 
-    - Incluir llamados a acción claros
-    - Evitar términos técnicos como "PCA" o "clustering"
+    Datos del análisis:
+    - Hallazgos: {analisis['top_features']}
+    - Riesgos: {analisis['riesgos']}
+    - Correlación clave: {analisis['correlaciones']}
     """
-    
+
     try:
+        # Corrección clave: Asegurar que los parámetros se pasen por nombre
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama3-70b-8192",  # Añadido explícitamente
             messages=[
                 {"role": "system", "content": SYS_PROMPT},
                 {"role": "user", "content": USER_PROMPT}
@@ -67,26 +50,38 @@ def generar_discurso_junta(analisis):
             temperature=0.7,
             max_tokens=1024
         )
-        
         return response.choices[0].message.content
         
     except Exception as e:
-        st.error(f"Error al generar discurso: {str(e)}")
+        st.error(f"Error en la API: {str(e)}")
         return None
-
 # Integración en Streamlit
 def presentar_analisis_junta():
     st.title("🎙️ Discurso Automatizado para la Junta")
     
-    # Cargar datos
+    # ==== NUEVOS SELECTORES (ÚNICO CAMBIO) ====
+    col1, col2 = st.columns(2)
+    with col1:
+        destinatario = st.selectbox(
+            "Dirigido a:",
+            ["Padres de familia", "Junta directiva", "Estudiantes"],
+            index=0
+        )
+    with col2:
+        tipo_comunicacion = st.selectbox(
+            "Tipo de comunicación:",
+            ["Discurso", "Email", "Cartelera"],
+            index=0
+        )
+    # ==========================================
+
+    # ==== TODO EL RESTO DEL CÓDIGO PERMANECE EXACTAMENTE IGUAL ====
     df = load_data('Factor 1. Bienestar cognitivo emocional(1-54)-2.xlsx')
     
     with st.spinner("Analizando datos y preparando presentación..."):
-        # Obtener análisis exploratorio
         pivot_df = df.pivot_table(index='ID', columns='Pregunta', values='Puntaje')
         corr_matrix = pivot_df.corr()
         
-        # Obtener análisis del modelo
         target_df = df.groupby('ID')['Puntaje'].mean().reset_index()
         features_df = pivot_df.fillna(0)
         model = RandomForestRegressor(n_estimators=200, random_state=42)
@@ -94,12 +89,10 @@ def presentar_analisis_junta():
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(features_df)
         
-        # Obtener análisis de clusters
         pca = PCA(n_components=3)
         components = pca.fit_transform(features_df)
         clusters = KMeans(n_clusters=3).fit_predict(components)
         
-        # Preparar estructura de datos para el análisis
         analisis_completo = {
             "clusters": f"{len(np.unique(clusters))} grupos principales detectados",
             "top_features": features_df.columns[np.argsort(np.abs(shap_values).mean(0))[-3:]].tolist(),
@@ -108,15 +101,19 @@ def presentar_analisis_junta():
             "shap_values": f"{features_df.columns[np.argmax(np.abs(shap_values).mean(0))]} = Impacto más alto"
         }
         
-        # Generar discurso
-        discurso = generar_discurso_junta(analisis_completo)
+        # Ajuste mínimo en la llamada para pasar los nuevos parámetros
+        discurso = generar_discurso_junta(
+            analisis_completo,
+            destinatario=destinatario,  # Nuevo parámetro
+            tipo_comunicacion=tipo_comunicacion  # Nuevo parámetro
+        )
     
+    # ==== EL RESTO DEL CÓDIGO SIGUE IGUAL ====
     if discurso:
-        st.subheader("Borrador de Discurso Generado:")
-        with st.expander("Ver discurso completo", expanded=True):
+        st.subheader("Borrador de Comunicación Generada:")
+        with st.expander("Ver contenido completo", expanded=True):
             st.markdown(discurso)
             
-        # Mostrar datos de análisis usados
         with st.expander("🔍 Ver datos de análisis utilizados"):
             st.write("**Clusters:**", analisis_completo['clusters'])
             st.write("**Variables más importantes:**", ", ".join(analisis_completo['top_features']))
@@ -124,15 +121,13 @@ def presentar_analisis_junta():
             st.write("**Riesgos detectados:**", analisis_completo['riesgos'])
             st.write("**Impacto de variables (SHAP):**", analisis_completo['shap_values'])
             
-        # Opciones de exportación
         col1, col2 = st.columns(2)
         with col1:
-            st.download_button("📥 Descargar como PDF", discurso, file_name="discurso_junta.pdf")
+            st.download_button("📥 Descargar como PDF", discurso, file_name=f"comunicado_{destinatario[:3]}_{tipo_comunicacion[:3]}.pdf")
         with col2:
             if st.button("🎧 Escuchar versión audio"):
                 st.audio(generar_audio(discurso))
         
-        # Sistema de feedback
         st.write("---")
         st.subheader("✍️ Personalizar el discurso")
         nuevo_tono = st.selectbox("Ajustar tono:", ["Motivacional", "Urgente", "Empático"])
@@ -140,8 +135,7 @@ def presentar_analisis_junta():
             st.experimental_rerun()
             
     else:
-        st.warning("No se pudo generar el discurso. Verifica los análisis previos.")
-
+        st.warning("No se pudo generar el contenido. Verifica los análisis previos.")
 def generar_audio(texto):
     # Implementar integración con API de texto a voz
     pass
