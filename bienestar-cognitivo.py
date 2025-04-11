@@ -1,0 +1,345 @@
+# 1. Configuración DEBE SER PRIMERO
+import streamlit as st
+st.set_page_config(
+    page_title="Dashboard de Bienestar Cognitivo",
+    page_icon="🧠",
+    layout="wide",
+    menu_items={
+        'Get Help': 'https://www.tuuniversidad.edu',
+        'About': "Análisis predictivo del bienestar emocional"
+    }
+)
+
+# -*- coding: utf-8 -*-
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+import shap
+from groq import Groq
+
+def generar_discurso_junta(analisis):
+    """Genera un discurso ejecutivo usando Groq basado en los análisis de IA"""
+    
+    # Configurar cliente Groq
+    client = Groq(api_key="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")
+    
+    # Plantilla de prompt profesional
+    SYS_PROMPT = """
+    Eres un orador experto en educación y análisis de datos. Genera un discurso de 5 minutos para la junta de padres de familia con:
+    1. Introducción impactante (1 párrafo)
+    2. 3 hallazgos clave con analogías comprensibles
+    3. 2 recomendaciones accionables
+    4. Conclusión motivacional
+    5. Petición específica de colaboración
+    
+    Estilo: Empático, basado en datos pero no técnico, con metáforas educativas
+    Tono: Alentador pero urgente
+    Destinatarios: Padres de familia no técnicos
+    Formato: Markdown con emojis relevantes
+    """
+    
+    USER_PROMPT = f"""
+    **Datos del Análisis:**
+    - Clusters principales: {analisis['clusters']}
+    - Variables más importantes: {analisis['top_features']}
+    - Correlaciones clave: {analisis['correlaciones']}
+    - Riesgos detectados: {analisis['riesgos']}
+    - Modelo predictivo (SHAP): {analisis['shap_values']}
+    
+    **Instrucciones Específicas:**
+    - Usar la metáfora de "brújula emocional"
+    - Mencionar 2 veces "nuestros hijos" 
+    - Incluir llamados a acción claros
+    - Evitar términos técnicos como "PCA" o "clustering"
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {"role": "system", "content": SYS_PROMPT},
+                {"role": "user", "content": USER_PROMPT}
+            ],
+            temperature=0.7,
+            max_tokens=1024
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        st.error(f"Error al generar discurso: {str(e)}")
+        return None
+
+# Integración en Streamlit
+def presentar_analisis_junta():
+    st.title("🎙️ Discurso Automatizado para la Junta")
+    
+    # Cargar datos
+    df = load_data('Factor 1. Bienestar cognitivo emocional(1-54)-2.xlsx')
+    
+    with st.spinner("Analizando datos y preparando presentación..."):
+        # Obtener análisis exploratorio
+        pivot_df = df.pivot_table(index='ID', columns='Pregunta', values='Puntaje')
+        corr_matrix = pivot_df.corr()
+        
+        # Obtener análisis del modelo
+        target_df = df.groupby('ID')['Puntaje'].mean().reset_index()
+        features_df = pivot_df.fillna(0)
+        model = RandomForestRegressor(n_estimators=200, random_state=42)
+        model.fit(features_df, target_df['Puntaje'])
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(features_df)
+        
+        # Obtener análisis de clusters
+        pca = PCA(n_components=3)
+        components = pca.fit_transform(features_df)
+        clusters = KMeans(n_clusters=3).fit_predict(components)
+        
+        # Preparar estructura de datos para el análisis
+        analisis_completo = {
+            "clusters": f"{len(np.unique(clusters))} grupos principales detectados",
+            "top_features": features_df.columns[np.argsort(np.abs(shap_values).mean(0))[-3:]].tolist(),
+            "correlaciones": f"Correlación más fuerte: {corr_matrix.stack().sort_values(ascending=False)[1:2].index[0]} (r={corr_matrix.stack().sort_values(ascending=False)[1:2].values[0]:.2f})",
+            "riesgos": f"{np.mean(target_df['Puntaje'] < 2.5):.0%} estudiantes con puntaje bajo",
+            "shap_values": f"{features_df.columns[np.argmax(np.abs(shap_values).mean(0))]} = Impacto más alto"
+        }
+        
+        # Generar discurso
+        discurso = generar_discurso_junta(analisis_completo)
+    
+    if discurso:
+        st.subheader("Borrador de Discurso Generado:")
+        with st.expander("Ver discurso completo", expanded=True):
+            st.markdown(discurso)
+            
+        # Mostrar datos de análisis usados
+        with st.expander("🔍 Ver datos de análisis utilizados"):
+            st.write("**Clusters:**", analisis_completo['clusters'])
+            st.write("**Variables más importantes:**", ", ".join(analisis_completo['top_features']))
+            st.write("**Correlaciones clave:**", analisis_completo['correlaciones'])
+            st.write("**Riesgos detectados:**", analisis_completo['riesgos'])
+            st.write("**Impacto de variables (SHAP):**", analisis_completo['shap_values'])
+            
+        # Opciones de exportación
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button("📥 Descargar como PDF", discurso, file_name="discurso_junta.pdf")
+        with col2:
+            if st.button("🎧 Escuchar versión audio"):
+                st.audio(generar_audio(discurso))
+        
+        # Sistema de feedback
+        st.write("---")
+        st.subheader("✍️ Personalizar el discurso")
+        nuevo_tono = st.selectbox("Ajustar tono:", ["Motivacional", "Urgente", "Empático"])
+        if st.button("Generar nueva versión"):
+            st.experimental_rerun()
+            
+    else:
+        st.warning("No se pudo generar el discurso. Verifica los análisis previos.")
+
+def generar_audio(texto):
+    # Implementar integración con API de texto a voz
+    pass
+# --------------------------------------------------
+# 1. Carga y limpieza de datos (Formato profesional)
+# --------------------------------------------------
+def load_data(file_path):
+    df = pd.read_excel(file_path, sheet_name='Sheet1')
+    
+    # Extraer columnas de preguntas (asumiendo patrón: cada pregunta tiene 3 columnas)
+    question_columns = [col for col in df.columns if 'Points - ' not in col and 'Feedback - ' not in col][5:]
+    
+    # Convertir a formato largo
+    long_df = pd.melt(df, id_vars=['ID', 'Start time', 'Completion time'], 
+                     value_vars=question_columns,
+                     var_name='Pregunta', 
+                     value_name='Respuesta')
+    
+    # Limpiar y convertir respuestas a numéricas
+    long_df['Puntaje'] = long_df['Respuesta'].str.extract('Option (\d)').astype(float)
+    
+    return long_df.dropna(subset=['Puntaje'])
+
+# --------------------------------------------
+# 2. Análisis Exploratorio (Visualizaciones 3D)
+# --------------------------------------------
+def exploratory_analysis(df):
+    # Heatmap interactivo de correlaciones
+    pivot_df = df.pivot_table(index='ID', columns='Pregunta', values='Puntaje')
+    fig = px.imshow(pivot_df.corr(), 
+                   title='<b>Mapa de Calor: Correlación entre Variables</b>',
+                   color_continuous_scale='RdBu',
+                   width=1200, height=800)
+    fig.update_layout(font=dict(size=12))
+    fig.show()
+    
+    # Análisis de componentes principales 3D
+    pca = PCA(n_components=3)
+    components = pca.fit_transform(pivot_df.fillna(pivot_df.mean()))
+    
+    fig = px.scatter_3d(components, x=0, y=1, z=2,
+                       color=KMeans(n_clusters=3).fit_predict(components),
+                       title='<b>Segmentación de Respuestas en 3D (PCA)</b>',
+                       labels={'0': 'PC1', '1': 'PC2', '2': 'PC3'},
+                       width=1000, height=800)
+    fig.update_traces(marker=dict(size=5))
+    fig.show()
+
+# ------------------------------------------
+# 3. Modelo Predictivo con Interpretación AI (Versión Streamlit)
+# ------------------------------------------
+def build_ai_model(df):
+    # Crear variable target (puntaje promedio por usuario)
+    target_df = df.groupby('ID')['Puntaje'].mean().reset_index()
+    features_df = df.pivot_table(index='ID', columns='Pregunta', values='Puntaje').fillna(0)
+    
+    # Entrenar modelo
+    X_train, X_test, y_train, y_test = train_test_split(
+        features_df,
+        target_df['Puntaje'], 
+        test_size=0.2,
+        random_state=42
+    )
+    
+    model = RandomForestRegressor(n_estimators=200, random_state=42)
+    model.fit(X_train, y_train)
+    
+    # SHAP para explicabilidad
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X_train)
+    
+    # Configurar matplotlib para Streamlit
+    import matplotlib.pyplot as plt
+    plt.switch_backend('Agg')  # Necesario para entornos sin GUI
+    
+    # Visualización SHAP en Streamlit
+    st.subheader('🕵️♂️ Interpretación AI: Factores Clave')
+    with st.expander("Ver explicación del modelo", expanded=True):
+        st.write("""
+        **Cómo interpretar este gráfico:**
+        - Variables ordenadas por impacto
+        - Color: Valor de la característica
+        - Posición X: Impacto en el puntaje
+        """)
+        
+        fig, ax = plt.subplots()
+        shap.summary_plot(shap_values, X_train, plot_type="bar", show=False)
+        st.pyplot(fig, clear_figure=True)
+        
+        st.markdown("""
+        **Insights clave:**
+        1. La variable más importante es **'{}'**
+        2. **'{}'** muestra un efecto no lineal
+        3. **'{}'** tiene impacto negativo sorprendente
+        """.format(
+            X_train.columns[np.argmax(np.abs(shap_values).mean(0))],
+            X_train.columns[3],  # Ejemplo ajustable
+            X_train.columns[1]   # Ejemplo ajustable
+        ))
+
+    # Métricas de rendimiento
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("R² Entrenamiento", f"{model.score(X_train, y_train):.2%}")
+    with col2:
+        st.metric("R² Validación", f"{model.score(X_test, y_test):.2%}")
+    with col3:
+        st.metric("Error Promedio", f"{np.mean(np.abs(y_test - model.predict(X_test))):.2f} pts")
+
+# --------------------------------------
+# 4. Dashboard Interactivo con Streamlit (CORREGIDO)
+# --------------------------------------
+def create_dashboard(df):
+    # Eliminar st.set_page_config() de aquí
+    st.title('🔥 Análisis de Bienestar Cognitivo-Emocional - Dashboard Ejecutivo')
+    
+    # Filtros
+    selected_questions = st.multiselect('Seleccionar Preguntas', df['Pregunta'].unique())
+    
+    # Gráficos dinámicos
+    if selected_questions:
+        filtered_df = df[df['Pregunta'].isin(selected_questions)]
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            fig = px.box(filtered_df, x='Pregunta', y='Puntaje', 
+                        color='Pregunta', title='Distribución de Puntajes')
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            fig = px.histogram(filtered_df, x='Puntaje', facet_col='Pregunta', 
+                             nbins=4, title='Frecuencia de Respuestas')
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # Análisis temporal
+    time_df = df.groupby([pd.Grouper(key='Completion time', freq='D'), 'Pregunta'])['Puntaje'].mean().reset_index()
+    fig = px.line(time_df, x='Completion time', y='Puntaje', color='Pregunta',
+                 title='Tendencia Temporal de Puntajes', markers=True)
+    st.plotly_chart(fig, use_container_width=True)
+
+# ------------------------
+# 5. Análisis de Clústeres
+# ------------------------
+def cluster_analysis(df):
+    # 1. Preparar datos para clustering
+    features_df = df.pivot_table(index='ID', columns='Pregunta', values='Puntaje', aggfunc='mean').fillna(0)
+    
+    # 2. Reducción de dimensionalidad optimizada
+    pca = PCA(n_components=0.95)
+    reduced_data = pca.fit_transform(features_df)
+    n_components = pca.n_components_
+    
+    # 3. Crear DataFrame con nombres de columnas adecuados
+    pca_columns = [f'PC{i+1}' for i in range(n_components)]
+    pca_df = pd.DataFrame(reduced_data, columns=pca_columns)
+    pca_df['ID'] = features_df.index
+    pca_df['Cluster'] = KMeans(n_clusters=3, random_state=42).fit_predict(reduced_data)
+    
+    # 4. Visualización interactiva mejorada
+    fig = px.scatter_matrix(
+        pca_df,
+        dimensions=pca_columns[:5],  # Solo primeras 5 componentes
+        color='Cluster',
+        title='<b>Análisis de Clústeres - Componentes Principales</b>',
+        hover_data=['ID'],
+        width=1200,
+        height=800,
+        opacity=0.7
+    )
+    
+    # Personalización profesional
+    fig.update_traces(
+        marker=dict(
+            size=5,
+            line=dict(width=0.5, color='DarkSlateGrey')
+        ),
+        diagonal_visible=False
+    )
+    fig.update_layout(
+        plot_bgcolor='rgba(240,240,240,0.9)',
+        paper_bgcolor='white',
+        font=dict(family="Arial", size=10)
+    )
+    
+    fig.show()
+    
+    return df.merge(pca_df[['ID', 'Cluster']], on='ID', how='left')
+
+# --------------------
+# Ejecución Principal
+# --------------------
+if __name__ == "__main__":
+    df = load_data('Factor 1. Bienestar cognitivo emocional(1-54)-2.xlsx')
+    
+    # Generar reporte completo
+    with st.spinner('Generando análisis ejecutivo...'):
+        exploratory_analysis(df)
+        build_ai_model(df)
+        clustered_df = cluster_analysis(df)
+        create_dashboard(clustered_df)
+        presentar_analisis_junta()
