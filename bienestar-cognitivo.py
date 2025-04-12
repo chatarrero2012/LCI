@@ -26,22 +26,21 @@ import pygame
 import re
 import base64
 def autoplay_audio(file_path):
-    # Leer el archivo de audio
-    with open(file_path, "rb") as f:
+     with open(file_path, "rb") as f:
         audio_bytes = f.read()
-    
-    # Convertir a base64
-    audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-    
-    # Generar el HTML con autoplay
-    audio_html = f"""
-    <audio autoplay>
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        audio_html = f"""
+    <audio controls autoplay>
     <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+    Your browser does not support the audio element.
     </audio>
+    <script>
+    document.querySelector('audio').play().catch(e => console.log(e));
+    </script>
     """
-    
-    # Mostrar el reproductor oculto
-    st.components.v1.html(audio_html, height=0)
+        st.components.v1.html(audio_html, height=50)
+        st.audio(file_path, format="audio/mp3")
+        st.warning("Presiona ▶️ en iPhone (restricciones de iOS)")
 def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comunicacion="Discurso"):
     """Versión corregida manteniendo tu estructura"""
     client = Groq(api_key="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")
