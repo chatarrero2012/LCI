@@ -29,16 +29,6 @@ def autoplay_audio(file_path):
      with open(file_path, "rb") as f:
         audio_bytes = f.read()
         audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-        audio_html = f"""
-    <audio controls autoplay>
-    <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-    Your browser does not support the audio element.
-    </audio>
-    <script>
-    document.querySelector('audio').play().catch(e => console.log(e));
-    </script>
-    """
-        st.components.v1.html(audio_html, height=50)
         st.audio(file_path, format="audio/mp3")
         st.warning("Presiona ▶️ en iPhone (restricciones de iOS)")
 def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comunicacion="Discurso"):
