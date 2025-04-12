@@ -24,16 +24,45 @@ import edge_tts
 import asyncio
 import pygame
 import re
-
+import base64
+def autoplay_audio(file_path):
+    # Leer el archivo de audio
+    with open(file_path, "rb") as f:
+        audio_bytes = f.read()
+    
+    # Convertir a base64
+    audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+    
+    # Generar el HTML con autoplay
+    audio_html = f"""
+    <audio autoplay>
+    <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+    </audio>
+    """
+    
+    # Mostrar el reproductor oculto
+    st.components.v1.html(audio_html, height=0)
 def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comunicacion="Discurso"):
     """Versión corregida manteniendo tu estructura"""
     client = Groq(api_key="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")
     
     SYS_PROMPT = f"""
-    Eres un comunicador educativo. Genera un {tipo_comunicacion.lower()} para {destinatario.lower()} con:
-    1. Introducción impactante
-    2. 3 hallazgos clave
-    3. Recomendaciones prácticas
+    Eres un coach educativo estilo TEDx. Genera un {tipo_comunicacion.lower()} que ELECTRIFIQUE a {destinatario.lower()} con:
+1. **Apertura explosiva**: ¡Dato impactante + analogía memorable!  
+   Ej: "Esto duele más que ver a un estudiante copiando en ChatGPT"  
+
+2. **Hallazgos clave** (3 verdades incómodas con comparaciones crudas):  
+   - "El 40% de nuestros estudiantes están más estresados que CEO en quiebra"  
+
+3. **Recomendaciones de guerra** (2 acciones específicas):  
+   - "No es otro taller... ¡es entrenamiento de supervivencia académica!"  
+
+4. **Cierre épico**: Llamado a acción que erice la piel  
+
+Reglas:  
+- CERO lenguaje corporativo ("sinergias", "enfoque holístico")  
+- 100% español neutro (nada de "móvil" → decir "celular")  
+- Tono: Como si estuvieras salvando la educación a golpes 
     """
     
     USER_PROMPT = f"""
@@ -129,7 +158,7 @@ async def presentar_analisis_junta():
         with col1:
             st.download_button("📥 Descargar como PDF", discurso, file_name=f"comunicado_{destinatario[:3]}_{tipo_comunicacion[:3]}.pdf")
         with col2:
-            if st.button("🎧 Escuchar versión audio"):
+            #if st.button("🎧 Escuchar versión audio"):
                 await generar_audio(discurso)
         
         st.write("---")
@@ -151,9 +180,7 @@ async def generar_audio(texto):
     clean_texto = limpiar_texto_para_voz(texto)
     communicate = edge_tts.Communicate(clean_texto, voice)
     await communicate.save("output.mp3")
-    pygame.mixer.init()
-    pygame.mixer.music.load("output.mp3")
-    pygame.mixer.music.play()
+    autoplay_audio("output.mp3")
     print("Audio guardado como 'output.mp3'")
 # --------------------------------------------------
 # 1. Carga y limpieza de datos (Formato profesional)
