@@ -51,7 +51,8 @@ def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comu
 Reglas:  
 - CERO lenguaje corporativo ("sinergias", "enfoque holístico")  
 - 100% español neutro (nada de "móvil" → decir "celular")  
-- Tono: Como si estuvieras salvando la educación a golpes 
+- Tono: Como si estuvieras salvando la educación a golpes
+- No lo dividas por secciones como si todas las partes fueran un solo flujo de ideas bien compacto
     """
     
     USER_PROMPT = f"""
