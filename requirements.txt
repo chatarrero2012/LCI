@@ -8,3 +8,4 @@ groq
 openpyxl
 matplotlib
 edge_tts
+pygame
