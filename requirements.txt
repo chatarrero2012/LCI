@@ -7,3 +7,4 @@ shap
 groq
 openpyxl
 matplotlib
+import edge_tts
