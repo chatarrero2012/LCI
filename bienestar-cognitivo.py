@@ -20,6 +20,10 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 import shap
 from groq import Groq
+import edge_tts
+import asyncio
+import pygame
+import re
 
 def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comunicacion="Discurso"):
     """Versión corregida manteniendo tu estructura"""
@@ -56,7 +60,7 @@ def generar_discurso_junta(analisis, destinatario="Padres de familia", tipo_comu
         st.error(f"Error en la API: {str(e)}")
         return None
 # Integración en Streamlit
-def presentar_analisis_junta():
+async def presentar_analisis_junta():
     st.title("🎙️ Discurso Automatizado para la Junta")
     
     # ==== NUEVOS SELECTORES (ÚNICO CAMBIO) ====
@@ -126,7 +130,7 @@ def presentar_analisis_junta():
             st.download_button("📥 Descargar como PDF", discurso, file_name=f"comunicado_{destinatario[:3]}_{tipo_comunicacion[:3]}.pdf")
         with col2:
             if st.button("🎧 Escuchar versión audio"):
-                st.audio(generar_audio(discurso))
+                await generar_audio(discurso)
         
         st.write("---")
         st.subheader("✍️ Personalizar el discurso")
@@ -136,9 +140,21 @@ def presentar_analisis_junta():
             
     else:
         st.warning("No se pudo generar el contenido. Verifica los análisis previos.")
-def generar_audio(texto):
-    # Implementar integración con API de texto a voz
-    pass
+def limpiar_texto_para_voz(texto):
+    # Elimina asteriscos, guiones raros, etc.
+    texto_limpio = re.sub(r'[\*\#\_\-]', ' ', texto)  
+    # Reduce múltiples espacios a uno solo
+    texto_limpio = re.sub(r'\s+', ' ', texto_limpio).strip()
+    return texto_limpio
+async def generar_audio(texto):
+    voice = "es-MX-DaliaNeural"  # Voz femenina expresiva
+    clean_texto = limpiar_texto_para_voz(texto)
+    communicate = edge_tts.Communicate(clean_texto, voice)
+    await communicate.save("output.mp3")
+    pygame.mixer.init()
+    pygame.mixer.music.load("output.mp3")
+    pygame.mixer.music.play()
+    print("Audio guardado como 'output.mp3'")
 # --------------------------------------------------
 # 1. Carga y limpieza de datos (Formato profesional)
 # --------------------------------------------------
@@ -330,10 +346,12 @@ def cluster_analysis(df):
 if __name__ == "__main__":
     df = load_data('Factor 1. Bienestar cognitivo emocional(1-54)-2.xlsx')
     
-    # Generar reporte completo
-    with st.spinner('Generando análisis ejecutivo...'):
-        exploratory_analysis(df)
-        build_ai_model(df)
-        clustered_df = cluster_analysis(df)
-        create_dashboard(clustered_df)
-        presentar_analisis_junta()
+    # Funciones síncronas
+    exploratory_analysis(df)
+    build_ai_model(df)
+    clustered_df = cluster_analysis(df)
+    create_dashboard(clustered_df)
+    
+    # Función asíncrona
+    import asyncio
+    asyncio.run(presentar_analisis_junta())
